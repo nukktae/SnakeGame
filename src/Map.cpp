@@ -116,26 +116,49 @@ public:
         return false;
     }
 
+    void clearOldItems() {
+        for (int i = 1; i < HEIGHT - 1; i++) {
+            for (int j = 1; j < WIDTH - 1; j++) {
+                if (map[i][j] == 5 || map[i][j] == 6) {
+                    map[i][j] = 0;
+                }
+            }
+        }
+    }
+
     void placeItems() {
+        clearOldItems();
+
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_int_distribution<int> dis(1, WIDTH-2);
 
-        for (int i = 0; i < 5; ++i) {
+        int growthItemsPlaced = 0;
+        int poisonItemsPlaced = 0;
+
+        while (growthItemsPlaced < 3 || poisonItemsPlaced < 2) {
             int x = dis(gen);
             int y = dis(gen);
             if (map[y][x] == 0) {
-                map[y][x] = (i % 2 == 0) ? 5 : 6;
+                if (growthItemsPlaced < 3) {
+                    map[y][x] = 5;
+                    growthItemsPlaced++;
+                } else if (poisonItemsPlaced < 2) {
+                    map[y][x] = 6;
+                    poisonItemsPlaced++;
+                }
             }
         }
     }
 
     void handleItems() {
-        static int itemCounter = 0;
-        itemCounter++;
-        if (itemCounter >= 10) {
+        static auto lastItemTime = std::chrono::high_resolution_clock::now();
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> elapsed = currentTime - lastItemTime;
+
+        if (elapsed.count() >= 5.0) {
             placeItems();
-            itemCounter = 0;
+            lastItemTime = currentTime;
         }
     }
 };
@@ -224,7 +247,7 @@ void gameLoop() {
 
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float> elapsed = currentTime - lastUpdateTime;
-            if (elapsed.count() >= 0.3) {
+            if (elapsed.count() >= 0.1) { // Increased speed
                 snake.move();
                 snake.draw();
                 snake.handleItems();
