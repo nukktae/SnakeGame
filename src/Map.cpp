@@ -64,7 +64,7 @@ public:
             grew = true;
             map[newHead.y][newHead.x] = 0;
         } else if (map[newHead.y][newHead.x] == 6) {
-            if (body.size() <= 1) {
+            if (body.size() <= 3) {
                 endwin();
                 printf("Game Over! Score: %ld\n", body.size());
                 exit(0);
@@ -82,6 +82,11 @@ public:
             Position tail = body.back();
             body.pop_back();
             map[tail.y][tail.x] = 0;
+            if (body.size() < 3) {
+                endwin();
+                printf("Game Over! Score: %ld\n", body.size());
+                exit(0);
+            }
         }
 
         prevDirection = direction;
@@ -167,37 +172,66 @@ void gameLoop() {
     Snake snake(WIDTH, HEIGHT);
     snake.placeItems();
 
+    bool gameStarted = false; // Flag to indicate if the game has started
+
     int ch;
     auto lastUpdateTime = std::chrono::high_resolution_clock::now();
     timeout(100);
 
+    mvprintw(HEIGHT + 1, 0, "Press any arrow to start the game");
+    refresh();
+
     while ((ch = getch()) != 'q') {
-        if (ch != ERR) {
+        if (!gameStarted && ch != ERR) {
             switch (ch) {
                 case KEY_UP:
                     snake.changeDirection(1);
+                    gameStarted = true;
                     break;
                 case KEY_RIGHT:
                     snake.changeDirection(2);
+                    gameStarted = true;
                     break;
                 case KEY_DOWN:
                     snake.changeDirection(3);
+                    gameStarted = true;
                     break;
                 case KEY_LEFT:
                     snake.changeDirection(4);
+                    gameStarted = true;
                     break;
             }
+            clear();
         }
 
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<float> elapsed = currentTime - lastUpdateTime;
-        if (elapsed.count() >= 0.3) {
-            snake.move();
-            snake.draw();
-            snake.handleItems();
-            printMap();
-            refresh();
-            lastUpdateTime = currentTime;
+        if (gameStarted) {
+            if (ch != ERR) {
+                switch (ch) {
+                    case KEY_UP:
+                        snake.changeDirection(1);
+                        break;
+                    case KEY_RIGHT:
+                        snake.changeDirection(2);
+                        break;
+                    case KEY_DOWN:
+                        snake.changeDirection(3);
+                        break;
+                    case KEY_LEFT:
+                        snake.changeDirection(4);
+                        break;
+                }
+            }
+
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<float> elapsed = currentTime - lastUpdateTime;
+            if (elapsed.count() >= 0.3) {
+                snake.move();
+                snake.draw();
+                snake.handleItems();
+                printMap();
+                refresh();
+                lastUpdateTime = currentTime;
+            }
         }
     }
 }
