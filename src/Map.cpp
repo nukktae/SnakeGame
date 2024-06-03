@@ -172,7 +172,7 @@ void gameLoop() {
     Snake snake(WIDTH, HEIGHT);
     snake.placeItems();
 
-    bool gameStarted = false; // Flag to indicate if the game has started
+    bool gameStarted = false;
 
     int ch;
     auto lastUpdateTime = std::chrono::high_resolution_clock::now();
