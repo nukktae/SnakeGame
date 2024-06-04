@@ -1,109 +1,238 @@
 #include <ncurses.h>
 #include <cstdlib>
 #include <ctime>
-#include "Map.cpp"
-#include <iostream>
+#include <random>
 #include <unistd.h>
+#include <vector>
+#include <chrono>
+#include <utility>
+#include <fstream>
 
-int kbhit(void) {
-    struct timeval tv;
-    fd_set rdfs;
+const int HEIGHT = 21;
+const int WIDTH = 21;
+int map[HEIGHT][WIDTH];
 
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
+struct Position
+{
+    int x, y;
+};
+struct Gate
+{
+    Position pos1;
+    Position pos2;
+};
+std::pair<Position, Position> gates;
 
-    FD_ZERO(&rdfs);
-    FD_SET(STDIN_FILENO, &rdfs);
+const char* mapFiles[] = {"map1.txt", "map2.txt"};
+int currentMapIndex = 0;
 
-    select(STDIN_FILENO+1, &rdfs, NULL, NULL, &tv);
-    return FD_ISSET(STDIN_FILENO, &rdfs);
+void loadMap(const char* filename)
+{
+    std::ifstream infile(filename);
+    if (!infile)
+    {
+        endwin();
+        printf("Error: Cannot open map file %s\n", filename);
+        exit(1);
+    }
+
+    for (int i = 0; i < HEIGHT; ++i)
+    {
+        for (int j = 0; j < WIDTH; ++j)
+        {
+            infile >> map[i][j];
+        }
+    }
+
+    infile.close();
 }
 
-class Snake {
-private:
-    struct Segment {
-        int x, y;
-    };
+void initMap(const char* filename)
+{
+    loadMap(filename);
+}
 
-    Segment *body;
-    int length;
-    int maxLength;
+class Snake
+{
+private:
+    std::vector<Position> body;
     int direction;
     int prevDirection;
-    int width = WIDTH;
-    int height = HEIGHT;
-    
+    int gatesPassed;
+    int growthItemsCollected;
+    int poisonItemsCollected;
+
 public:
-    Snake(int mapWidth, int mapHeight) {
+    Snake(int mapWidth, int mapHeight)
+        : gatesPassed(0), growthItemsCollected(0), poisonItemsCollected(0)
+    {
         direction = 2;
         prevDirection = 2;
-        maxLength = WIDTH * HEIGHT;
 
-        body = new Segment[maxLength];
+        int startX = mapWidth / 2;
+        int startY = mapHeight / 2;
 
-        int startX = WIDTH / 2 - 5;
-        int startY = HEIGHT / 2 - 5;
+        body.push_back({startX, startY});
+        body.push_back({startX - 1, startY});
+        body.push_back({startX - 2, startY});
 
-        length = 3;
-        for (int i = 0; i < length; ++i) {
-            body[i].x = startX - i;
-            body[i].y = startY;
-        }
-
+        map[startY][startX] = 3;
+        map[startY][startX - 1] = 4;
+        map[startY][startX - 2] = 4;
     }
 
-    ~Snake() {
-        delete[] body;
-    }
-
-    void changeDirection(int newDirection) {
-        if (newDirection != prevDirection && abs(newDirection - prevDirection) != 2) {
+    void changeDirection(int newDirection)
+    {
+        if (newDirection != prevDirection && abs(newDirection - prevDirection) != 2)
+        {
             direction = newDirection;
         }
     }
 
-    void move() {
-        int headX = body[0].x;
-        int headY = body[0].y;
-        if (headX <= 0 || headX >= WIDTH-2 || headY <= 0 || headY >= HEIGHT-2) {
+    void move()
+    {
+        Position newHead = body[0];
+
+        switch (direction)
+        {
+        case 1:
+            newHead.y--;
+            break;
+        case 2:
+            newHead.x++;
+            break;
+        case 3:
+            newHead.y++;
+            break;
+        case 4:
+            newHead.x--;
+            break;
+        }
+        if (map[newHead.y][newHead.x] == 7 || map[newHead.y][newHead.x] == 8)
+        {
+            if (map[newHead.y][newHead.x] == 7)
+            {
+                newHead = gates.second;
+            }
+            else
+            {
+                newHead = gates.first;
+            }
+
+            // Adjust new head position if gate is on the edge
+            if (newHead.x <= 0)
+                newHead.x = 1;
+            if (newHead.x >= WIDTH - 1)
+                newHead.x = WIDTH - 2;
+            if (newHead.y <= 0)
+                newHead.y = 1;
+            if (newHead.y >= HEIGHT - 1)
+                newHead.y = HEIGHT - 2;
+            if (direction == 1 && map[newHead.y - 1][newHead.x] == 1)
+            {
+                direction = 3;
+            }
+            else if (direction == 2 && map[newHead.y - 1][newHead.x] == 1)
+            {
+                direction = 4;
+            }
+            else if (direction == 3 && map[newHead.y - 1][newHead.x] == 1)
+            {
+                direction = 1;
+            }
+            else if (direction == 4 && map[newHead.y - 1][newHead.x] == 1)
+            {
+                direction = 2;
+            }
+            map[gates.first.y][gates.first.x] = 0;
+            map[gates.second.y][gates.second.x] = 0;
+            gatesPassed++;
+        }
+
+        if (checkCollision(newHead))
+        {
             endwin();
-            std::cout << "Game Over!" << std::endl;
+            printf("Game Over! Score: %ld\n", body.size());
             exit(0);
         }
-        switch (direction) {
-            case 1: headY--; break;
-            case 2: headX++; break;
-            case 3: headY++; break;
-            case 4: headX--; break;
+
+
+        bool grew = false;
+        if (map[newHead.y][newHead.x] == 5)
+        {
+            grew = true;
+            map[newHead.y][newHead.x] = 0;
+            growthItemsCollected++;
+            if (growthItemsCollected % 3 == 0)
+            {
+                changeMap();
+            }
+        }
+        else if (map[newHead.y][newHead.x] == 6)
+        {
+            if (body.size() <= 1)
+            {
+                endwin();
+                printf("Game Over! Score: %ld\n", body.size());
+                exit(0);
+            }
+
+            Position tail = body.back();
+            body.pop_back();
+            map[tail.y][tail.x] = 0;
+            map[newHead.y][newHead.x] = 0;
+            poisonItemsCollected++;
         }
 
-        for (int i = length - 1; i > 0; --i) {
-            body[i] = body[i - 1];
-        }
+        body.insert(body.begin(), newHead);
+        map[newHead.y][newHead.x] = 3;
 
-        body[0].x = headX;
-        body[0].y = headY;
+        if (!grew)
+        {
+            Position tail = body.back();
+            body.pop_back();
+            map[tail.y][tail.x] = 0;
+            if (body.size() < 3)
+            {
+                endwin();
+                printf("Game Over! Score: %ld\n", body.size());
+                exit(0);
+            }
+        }
 
         prevDirection = direction;
     }
 
-    void draw() {
-        mvaddch(body[0].y, body[0].x, 'H');
-        for (int i = 1; i < length; ++i) {
-            mvaddch(body[i].y, body[i].x, 'o');
+    void draw()
+    {
+        for (size_t i = 0; i < body.size(); ++i)
+        {
+            if (i == 0)
+            {
+                mvaddch(body[i].y, body[i].x, 'H');
+            }
+            else
+            {
+                mvaddch(body[i].y, body[i].x, 'o');
+            }
         }
+        mvaddch(gates.first.y, gates.first.x, 'G');
+        mvaddch(gates.second.y, gates.second.x, 'G');
     }
 
-    bool checkCollision() {
-        int headX = body[0].x;
-        int headY = body[0].y;
-
-        if (headX <= 0 || headX >= WIDTH - 1 || headY <= 0 || headY >= HEIGHT - 1 || mvwinch(stdscr, headY, headX) == '#') {
+    bool checkCollision(Position newHead)
+    {
+        if (newHead.x <= 0 || newHead.x >= WIDTH - 1 || newHead.y <= 0 || newHead.y >= HEIGHT - 1)
+        {
             return true;
         }
-
-        for (int i = 1; i < length; i++) {
-            if (headX == body[i].x && headY == body[i].y) {
+        if(map[newHead.x][newHead.y]==1){
+          return true;
+        }
+        for (size_t i = 0; i < body.size(); i++)
+        {
+            if (newHead.x == body[i].x && newHead.y == body[i].y)
+            {
                 return true;
             }
         }
@@ -111,58 +240,237 @@ public:
         return false;
     }
 
-    void runGame() {
-        while (true) {
-            if (kbhit()) {
-                handleInput();
-            }
-
-            move();
-            printMap();
-            draw();
-            refresh();
-
-            usleep(100000);
-
-            if (checkCollision()) {
-                endwin();
-                std::cout << "Game Over!" << std::endl;
-                break;
+    void clearOldItems()
+    {
+        for (int i = 1; i < HEIGHT - 1; i++)
+        {
+            for (int j = 1; j < WIDTH - 1; j++)
+            {
+                if (map[i][j] == 5 || map[i][j] == 6)
+                {
+                    map[i][j] = 0;
+                }
+                else if (map[i][j] == 7 || map[i][j] == 8)
+                {
+                    map[gates.first.y][gates.first.x] = 0;
+                    map[gates.second.y][gates.second.x] = 0;
+                }
             }
         }
     }
+    void changeMap()
+    {
+        currentMapIndex = (currentMapIndex + 1) % 2; // 다섯 개의 맵을 순환
+        initMap(mapFiles[currentMapIndex]);
+    }
+    void placeItems()
+    {
+        clearOldItems();
 
-    void handleInput() {
-        int c = getch();
-        switch (c) {
-            case KEY_UP:    changeDirection(1); break;
-            case KEY_RIGHT: changeDirection(2); break;
-            case KEY_DOWN:  changeDirection(3); break;
-            case KEY_LEFT:  changeDirection(4); break;
-            case 'q': endwin(); exit(0); break;
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> dis(1, WIDTH - 2);
+
+        int growthItemsPlaced = 0;
+        int poisonItemsPlaced = 0;
+
+        while (growthItemsPlaced < 3 || poisonItemsPlaced < 2)
+        {
+            int x = dis(gen);
+            int y = dis(gen);
+            if (map[y][x] == 0)
+            {
+                if (growthItemsPlaced < 3)
+                {
+                    map[y][x] = 5;
+                    growthItemsPlaced++;
+                }
+                else if (poisonItemsPlaced < 2)
+                {
+                    map[y][x] = 6;
+                    poisonItemsPlaced++;
+                }
+            }
+        }
+        placeGates();
+    }
+    void placeGates()
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> dis(1, WIDTH - 2);
+
+        Position gate1, gate2;
+        do
+        {
+            gate1 = {dis(gen), dis(gen)};
+        } while (map[gate1.y][gate1.x] != 0);
+
+        do
+        {
+            gate2 = {dis(gen), dis(gen)};
+        } while (map[gate2.y][gate2.x] != 0 || (gate1.x == gate2.x && gate1.y == gate2.y));
+
+        gates = {gate1, gate2};
+
+        map[gate1.y][gate1.x] = 7; // Gate 1
+        map[gate2.y][gate2.x] = 8; // Gate 2
+    }
+
+    void handleItems()
+    {
+        static auto lastItemTime = std::chrono::high_resolution_clock::now();
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> elapsed = currentTime - lastItemTime;
+
+        if (elapsed.count() >= 5.0)
+        {
+            placeItems();
+            lastItemTime = currentTime;
         }
     }
 
-    void initGame() {
-        initscr();
-        curs_set(0);
-        noecho();
-        keypad(stdscr, TRUE);
-
-        getmaxyx(stdscr, height, width);
-
-        initMap();
-        printMap();
-        draw();
-        refresh();
-        usleep(2000000);
+    void drawScoreboard()
+    {
+        int startX = WIDTH + 2;
+        mvprintw(1, startX, "Scoreboard");
+        mvprintw(2, startX, "----------");
+        mvprintw(3, startX, "Length: %ld", body.size());
+        mvprintw(4, startX, "Gates Passed: %d", gatesPassed);
+        mvprintw(5, startX, "Growth Items: %d", growthItemsCollected);
+        mvprintw(6, startX, "Poison Items: %d", poisonItemsCollected);
     }
 };
 
-int main() {
-    Snake snake(40, 20);
-    snake.initGame();
-    snake.runGame();
+void printMap()
+{
+    for (int i = 0; i < HEIGHT; i++)
+    {
+        for (int j = 0; j < WIDTH; j++)
+        {
+            char displayChar = ' ';
+            switch (map[i][j])
+            {
+            case 1:
+                displayChar = '#';
+                break;
+            case 3:
+                displayChar = 'H';
+                break;
+            case 4:
+                displayChar = 'o';
+                break;
+            case 5:
+                displayChar = '+';
+                break;
+            case 6:
+                displayChar = '-';
+                break;
+            case 7:
+                displayChar = 'G';
+                break; // Gate1
+            case 8:
+                displayChar = 'G';
+                break; // Gate2
+            }
+            mvaddch(i, j, displayChar);
+        }
+    }
+}
 
+
+
+void gameLoop()
+{
+    Snake snake(WIDTH, HEIGHT);
+    snake.placeItems();
+
+    bool gameStarted = false;
+
+    int ch;
+    auto lastUpdateTime = std::chrono::high_resolution_clock::now();
+    timeout(200);
+
+    mvprintw(HEIGHT + 1, 0, "Press any arrow to start the game");
+    refresh();
+
+    while ((ch = getch()) != 'q')
+    {
+        if (!gameStarted && ch != ERR)
+        {
+            switch (ch)
+            {
+            case KEY_UP:
+                snake.changeDirection(1);
+                gameStarted = true;
+                break;
+            case KEY_RIGHT:
+                snake.changeDirection(2);
+                gameStarted = true;
+                break;
+            case KEY_DOWN:
+                snake.changeDirection(3);
+                gameStarted = true;
+                break;
+            case KEY_LEFT:
+                snake.changeDirection(4);
+                gameStarted = true;
+                break;
+            }
+            clear();
+        }
+
+        if (gameStarted)
+        {
+            if (ch != ERR)
+            {
+                switch (ch)
+                {
+                case KEY_UP:
+                    snake.changeDirection(1);
+                    break;
+                case KEY_RIGHT:
+                    snake.changeDirection(2);
+                    break;
+                case KEY_DOWN:
+                    snake.changeDirection(3);
+                    break;
+                case KEY_LEFT:
+                    snake.changeDirection(4);
+                    break;
+                }
+            }
+
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<float> elapsed = currentTime - lastUpdateTime;
+            if (elapsed.count() >= 0.1)
+            { // Increased speed
+                snake.move();
+                snake.draw();
+                snake.handleItems();
+                printMap();
+                snake.drawScoreboard();
+                refresh();
+                lastUpdateTime = currentTime;
+            }
+        }
+    }
+}
+
+int main()
+{
+    initscr();
+    cbreak();
+    keypad(stdscr, TRUE);
+    noecho();
+    curs_set(0);
+    start_color();
+
+    initMap(mapFiles[currentMapIndex]);
+    printMap();
+
+    gameLoop();
+
+    endwin();
     return 0;
 }
