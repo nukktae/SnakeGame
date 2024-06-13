@@ -7,50 +7,30 @@
 #include <chrono>
 #include <utility>
 #include <fstream>
+#include <sstream>
 
 const int HEIGHT = 21;
 const int WIDTH = 21;
 int map[HEIGHT][WIDTH];
+int currentMapIndex = 1;
+int itemCount = 0;
+int gateCount = 0;
 
 struct Position
 {
     int x, y;
 };
+
 struct Gate
 {
     Position pos1;
     Position pos2;
 };
+
 std::pair<Position, Position> gates;
 
-const char* mapFiles[] = {"map1.txt", "map2.txt"};
-int currentMapIndex = 0;
-
-void loadMap(const char* filename)
-{
-    std::ifstream infile(filename);
-    if (!infile)
-    {
-        endwin();
-        printf("Error: Cannot open map file %s\n", filename);
-        exit(1);
-    }
-
-    for (int i = 0; i < HEIGHT; ++i)
-    {
-        for (int j = 0; j < WIDTH; ++j)
-        {
-            infile >> map[i][j];
-        }
-    }
-
-    infile.close();
-}
-
-void initMap(const char* filename)
-{
-    loadMap(filename);
-}
+// Function prototype for loadMap
+void loadMap(int mapIndex);
 
 class Snake
 {
@@ -58,13 +38,9 @@ private:
     std::vector<Position> body;
     int direction;
     int prevDirection;
-    int gatesPassed;
-    int growthItemsCollected;
-    int poisonItemsCollected;
 
 public:
     Snake(int mapWidth, int mapHeight)
-        : gatesPassed(0), growthItemsCollected(0), poisonItemsCollected(0)
     {
         direction = 2;
         prevDirection = 2;
@@ -81,6 +57,25 @@ public:
         map[startY][startX - 2] = 4;
     }
 
+    void resetPosition()
+    {
+        Position newStart = {1,1}; // 새로운 시작 위치
+        direction = prevDirection; // 아래 방향
+
+        int length = body.size();
+        body.clear();
+        direction = prevDirection; // 아래 방향
+
+        for (int i = 0; i < length; i++)
+        {
+            body.push_back({newStart.x, newStart.y + i});
+            if (i == 0)
+                map[newStart.y + i][newStart.x] = 3; // head
+            else
+                map[newStart.y + i][newStart.x] = 4; // body
+        }
+    }
+
     void changeDirection(int newDirection)
     {
         if (newDirection != prevDirection && abs(newDirection - prevDirection) != 2)
@@ -95,19 +90,20 @@ public:
 
         switch (direction)
         {
-        case 1:
-            newHead.y--;
-            break;
-        case 2:
-            newHead.x++;
-            break;
-        case 3:
-            newHead.y++;
-            break;
-        case 4:
-            newHead.x--;
-            break;
+            case 1:
+                newHead.y--;
+                break;
+            case 2:
+                newHead.x++;
+                break;
+            case 3:
+                newHead.y++;
+                break;
+            case 4:
+                newHead.x--;
+                break;
         }
+
         if (map[newHead.y][newHead.x] == 7 || map[newHead.y][newHead.x] == 8)
         {
             if (map[newHead.y][newHead.x] == 7)
@@ -119,7 +115,6 @@ public:
                 newHead = gates.first;
             }
 
-            // Adjust new head position if gate is on the edge
             if (newHead.x <= 0)
                 newHead.x = 1;
             if (newHead.x >= WIDTH - 1)
@@ -128,25 +123,34 @@ public:
                 newHead.y = 1;
             if (newHead.y >= HEIGHT - 1)
                 newHead.y = HEIGHT - 2;
-            if (direction == 1 && map[newHead.y - 1][newHead.x] == 1)
+
+            if (newHead.y == gates.first.y && newHead.x == gates.first.x)
             {
-                direction = 3;
+                if (newHead.x == 1)
+                    direction = 2;
+                else if (newHead.x == WIDTH - 2)
+                    direction = 4;
+                else if (newHead.y == 1)
+                    direction = 3;
+                else if (newHead.y == HEIGHT - 2)
+                    direction = 1;
             }
-            else if (direction == 2 && map[newHead.y - 1][newHead.x] == 1)
+            else if (newHead.y == gates.second.y && newHead.x == gates.second.x)
             {
-                direction = 4;
+                if (newHead.x == 1)
+                    direction = 2;
+                else if (newHead.x == WIDTH - 2)
+                    direction = 4;
+                else if (newHead.y == 1)
+                    direction = 3;
+                else if (newHead.y == HEIGHT - 2)
+                    direction = 1;
             }
-            else if (direction == 3 && map[newHead.y - 1][newHead.x] == 1)
-            {
-                direction = 1;
-            }
-            else if (direction == 4 && map[newHead.y - 1][newHead.x] == 1)
-            {
-                direction = 2;
-            }
+
             map[gates.first.y][gates.first.x] = 0;
             map[gates.second.y][gates.second.x] = 0;
-            gatesPassed++;
+
+            gateCount++;
         }
 
         if (checkCollision(newHead))
@@ -156,36 +160,62 @@ public:
             exit(0);
         }
 
-
         bool grew = false;
-        if (map[newHead.y][newHead.x] == 5)
+        int growthUnits = 1;
+
+        if (map[newHead.y][newHead.x] == 5 || map[newHead.y][newHead.x] == 6 || map[newHead.y][newHead.x] == 9)
         {
-            grew = true;
-            map[newHead.y][newHead.x] = 0;
-            growthItemsCollected++;
-            if (growthItemsCollected % 3 == 0)
+            itemCount++;
+            if (map[newHead.y][newHead.x] == 5)
             {
-                changeMap();
+                grew = true;
+                map[newHead.y][newHead.x] = 0;
             }
-        }
-        else if (map[newHead.y][newHead.x] == 6)
-        {
-            if (body.size() <= 1)
+            else if (map[newHead.y][newHead.x] == 6)
             {
-                endwin();
-                printf("Game Over! Score: %ld\n", body.size());
-                exit(0);
+                if (body.size() <= 3)
+                {
+                    endwin();
+                    printf("Game Over! Score: %ld\n", body.size());
+                    exit(0);
+                }
+                Position tail = body.back();
+                body.pop_back();
+                map[tail.y][tail.x] = 0;
+                map[newHead.y][newHead.x] = 0;
+            }
+            else if (map[newHead.y][newHead.x] == 9)
+            {
+                grew = true;
+                growthUnits = 2;
+                map[newHead.y][newHead.x] = 0;
             }
 
-            Position tail = body.back();
-            body.pop_back();
-            map[tail.y][tail.x] = 0;
-            map[newHead.y][newHead.x] = 0;
-            poisonItemsCollected++;
+            if (checkMissionCompletion())
+            {
+                itemCount = 0;
+                gateCount = 0;
+
+                if(currentMapIndex != 5){
+                    currentMapIndex = (currentMapIndex % 5) + 1;
+                }else{
+                    printf("Clear! your point is %ld\n", body.size());
+                    exit(0);
+                }
+                loadMap(currentMapIndex);
+                resetPosition();
+            }
         }
 
+        // Move the snake
         body.insert(body.begin(), newHead);
+
+        // Update the map
         map[newHead.y][newHead.x] = 3;
+        if (body.size() > 1)
+        {
+            map[body[1].y][body[1].x] = 4;
+        }
 
         if (!grew)
         {
@@ -201,23 +231,51 @@ public:
         }
 
         prevDirection = direction;
+
+        for (int i = 0; i < growthUnits - 1; i++)
+        {
+            Position newSegment = body.back();
+            body.push_back(newSegment);
+            map[newSegment.y][newSegment.x] = 4;
+        }
     }
 
     void draw()
     {
-        for (size_t i = 0; i < body.size(); ++i)
+        for (int i = 0; i < HEIGHT; ++i)
         {
-            if (i == 0)
+            for (int j = 0; j < WIDTH; ++j)
             {
-                mvaddch(body[i].y, body[i].x, 'H');
-            }
-            else
-            {
-                mvaddch(body[i].y, body[i].x, 'o');
+                char displayChar = ' ';
+                switch (map[i][j])
+                {
+                    case 1:
+                        displayChar = '#';
+                        break;
+                    case 3:
+                        displayChar = 'H';
+                        break;
+                    case 4:
+                        displayChar = 'o';
+                        break;
+                    case 5:
+                        displayChar = '+';
+                        break;
+                    case 6:
+                        displayChar = '-';
+                        break;
+                    case 7:
+                    case 8:
+                        displayChar = 'G';
+                        break;
+                    case 9:
+                        displayChar = '*';
+                        break;
+                }
+                mvaddch(i, j, displayChar);
             }
         }
-        mvaddch(gates.first.y, gates.first.x, 'G');
-        mvaddch(gates.second.y, gates.second.x, 'G');
+        displayMission();
     }
 
     bool checkCollision(Position newHead)
@@ -226,9 +284,12 @@ public:
         {
             return true;
         }
-        if(map[newHead.x][newHead.y]==1){
-          return true;
+
+        if (map[newHead.y][newHead.x] == 1)
+        {
+            return true;
         }
+
         for (size_t i = 0; i < body.size(); i++)
         {
             if (newHead.x == body[i].x && newHead.y == body[i].y)
@@ -246,7 +307,7 @@ public:
         {
             for (int j = 1; j < WIDTH - 1; j++)
             {
-                if (map[i][j] == 5 || map[i][j] == 6)
+                if (map[i][j] == 5 || map[i][j] == 6 || map[i][j] == 9)
                 {
                     map[i][j] = 0;
                 }
@@ -258,11 +319,7 @@ public:
             }
         }
     }
-    void changeMap()
-    {
-        currentMapIndex = (currentMapIndex + 1) % 2; // 다섯 개의 맵을 순환
-        initMap(mapFiles[currentMapIndex]);
-    }
+
     void placeItems()
     {
         clearOldItems();
@@ -273,8 +330,9 @@ public:
 
         int growthItemsPlaced = 0;
         int poisonItemsPlaced = 0;
+        int bonusItemsPlaced = 0;
 
-        while (growthItemsPlaced < 3 || poisonItemsPlaced < 2)
+        while (growthItemsPlaced < 3 || poisonItemsPlaced < 2 || bonusItemsPlaced < 1)
         {
             int x = dis(gen);
             int y = dis(gen);
@@ -290,10 +348,16 @@ public:
                     map[y][x] = 6;
                     poisonItemsPlaced++;
                 }
+                else if (bonusItemsPlaced < 1)
+                {
+                    map[y][x] = 9;
+                    bonusItemsPlaced++;
+                }
             }
         }
         placeGates();
     }
+
     void placeGates()
     {
         std::random_device rd;
@@ -313,8 +377,8 @@ public:
 
         gates = {gate1, gate2};
 
-        map[gate1.y][gate1.x] = 7; // Gate 1
-        map[gate2.y][gate2.x] = 8; // Gate 2
+        map[gate1.y][gate1.x] = 7;
+        map[gate2.y][gate2.x] = 8;
     }
 
     void handleItems()
@@ -330,17 +394,76 @@ public:
         }
     }
 
-    void drawScoreboard()
+    bool checkMissionCompletion()
     {
-        int startX = WIDTH + 2;
-        mvprintw(1, startX, "Scoreboard");
-        mvprintw(2, startX, "----------");
-        mvprintw(3, startX, "Length: %ld", body.size());
-        mvprintw(4, startX, "Gates Passed: %d", gatesPassed);
-        mvprintw(5, startX, "Growth Items: %d", growthItemsCollected);
-        mvprintw(6, startX, "Poison Items: %d", poisonItemsCollected);
+        switch (currentMapIndex)
+        {
+            case 1:
+                return itemCount >= 3 && gateCount >= 2;
+            case 2:
+                return itemCount >= 1 && gateCount >= 2;
+            case 3:
+                return itemCount >= 2 && gateCount >= 2;
+            case 4:
+                return gateCount >= 2;
+            default:
+                return false;
+        }
+    }
+
+    void displayMission()
+    {
+        mvprintw(0, WIDTH + 2, "<MISSION>");
+
+        switch (currentMapIndex)
+        {
+            case 1:
+                mvprintw(1, WIDTH + 2, "Items: %d / 3", itemCount);
+                mvprintw(2, WIDTH + 2, "Gates: %d / 2", gateCount);
+                break;
+            case 2:
+                mvprintw(1, WIDTH + 2, "Items: %d / 1", itemCount);
+                mvprintw(2, WIDTH + 2, "Gates: %d / 2", gateCount);
+                break;
+            case 3:
+                mvprintw(1, WIDTH + 2, "Items: %d / 2", itemCount);
+                mvprintw(2, WIDTH + 2, "Gates: %d / 2", gateCount);
+                break;
+            case 4:
+                mvprintw(1, WIDTH + 2, "Gates: %d / 2", gateCount);
+                break;
+        }
     }
 };
+
+void loadMap(int mapIndex)
+{
+    std::ifstream mapFile("map" + std::to_string(mapIndex) + ".txt");
+    if (mapFile.is_open())
+    {
+        std::string line;
+        int row = 0;
+        while (std::getline(mapFile, line))
+        {
+            std::stringstream ss(line);
+            int col = 0;
+            int value;
+            while (ss >> value)
+            {
+                map[row][col] = value;
+                col++;
+            }
+            row++;
+        }
+        mapFile.close();
+    }
+    else
+    {
+        endwin();
+        printf("Failed to load map file: map%d.txt\n", mapIndex);
+        exit(1);
+    }
+}
 
 void printMap()
 {
@@ -351,34 +474,33 @@ void printMap()
             char displayChar = ' ';
             switch (map[i][j])
             {
-            case 1:
-                displayChar = '#';
-                break;
-            case 3:
-                displayChar = 'H';
-                break;
-            case 4:
-                displayChar = 'o';
-                break;
-            case 5:
-                displayChar = '+';
-                break;
-            case 6:
-                displayChar = '-';
-                break;
-            case 7:
-                displayChar = 'G';
-                break; // Gate1
-            case 8:
-                displayChar = 'G';
-                break; // Gate2
+                case 1:
+                    displayChar = '#';
+                    break;
+                case 3:
+                    displayChar = 'H';
+                    break;
+                case 4:
+                    displayChar = 'o';
+                    break;
+                case 5:
+                    displayChar = '+';
+                    break;
+                case 6:
+                    displayChar = '-';
+                    break;
+                case 7:
+                case 8:
+                    displayChar = 'G';
+                    break;
+                case 9:
+                    displayChar = '*';
+                    break;
             }
             mvaddch(i, j, displayChar);
         }
     }
 }
-
-
 
 void gameLoop()
 {
@@ -389,7 +511,7 @@ void gameLoop()
 
     int ch;
     auto lastUpdateTime = std::chrono::high_resolution_clock::now();
-    timeout(200);
+    timeout(180);
 
     mvprintw(HEIGHT + 1, 0, "Press any arrow to start the game");
     refresh();
@@ -400,22 +522,22 @@ void gameLoop()
         {
             switch (ch)
             {
-            case KEY_UP:
-                snake.changeDirection(1);
-                gameStarted = true;
-                break;
-            case KEY_RIGHT:
-                snake.changeDirection(2);
-                gameStarted = true;
-                break;
-            case KEY_DOWN:
-                snake.changeDirection(3);
-                gameStarted = true;
-                break;
-            case KEY_LEFT:
-                snake.changeDirection(4);
-                gameStarted = true;
-                break;
+                case KEY_UP:
+                    snake.changeDirection(1);
+                    gameStarted = true;
+                    break;
+                case KEY_RIGHT:
+                    snake.changeDirection(2);
+                    gameStarted = true;
+                    break;
+                case KEY_DOWN:
+                    snake.changeDirection(3);
+                    gameStarted = true;
+                    break;
+                case KEY_LEFT:
+                    snake.changeDirection(4);
+                    gameStarted = true;
+                    break;
             }
             clear();
         }
@@ -426,30 +548,29 @@ void gameLoop()
             {
                 switch (ch)
                 {
-                case KEY_UP:
-                    snake.changeDirection(1);
-                    break;
-                case KEY_RIGHT:
-                    snake.changeDirection(2);
-                    break;
-                case KEY_DOWN:
-                    snake.changeDirection(3);
-                    break;
-                case KEY_LEFT:
-                    snake.changeDirection(4);
-                    break;
+                    case KEY_UP:
+                        snake.changeDirection(1);
+                        break;
+                    case KEY_RIGHT:
+                        snake.changeDirection(2);
+                        break;
+                    case KEY_DOWN:
+                        snake.changeDirection(3);
+                        break;
+                    case KEY_LEFT:
+                        snake.changeDirection(4);
+                        break;
                 }
             }
 
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float> elapsed = currentTime - lastUpdateTime;
             if (elapsed.count() >= 0.1)
-            { // Increased speed
+            {
                 snake.move();
                 snake.draw();
                 snake.handleItems();
                 printMap();
-                snake.drawScoreboard();
                 refresh();
                 lastUpdateTime = currentTime;
             }
@@ -466,7 +587,7 @@ int main()
     curs_set(0);
     start_color();
 
-    initMap(mapFiles[currentMapIndex]);
+    loadMap(currentMapIndex);
     printMap();
 
     gameLoop();
