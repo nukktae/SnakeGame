@@ -12,25 +12,17 @@
 const int HEIGHT = 21;
 const int WIDTH = 21;
 int map[HEIGHT][WIDTH];
-int currentMapIndex = 1;
-int itemCount = 0;
-int gateCount = 0;
 
 struct Position
 {
     int x, y;
 };
-
 struct Gate
 {
     Position pos1;
     Position pos2;
 };
-
 std::pair<Position, Position> gates;
-
-// Function prototype for loadMap
-void loadMap(int mapIndex);
 
 class Snake
 {
@@ -55,25 +47,6 @@ public:
         map[startY][startX] = 3;
         map[startY][startX - 1] = 4;
         map[startY][startX - 2] = 4;
-    }
-
-    void resetPosition()
-    {
-        Position newStart = {1,1}; // 새로운 시작 위치
-        direction = prevDirection; // 아래 방향
-
-        int length = body.size();
-        body.clear();
-        direction = prevDirection; // 아래 방향
-
-        for (int i = 0; i < length; i++)
-        {
-            body.push_back({newStart.x, newStart.y + i});
-            if (i == 0)
-                map[newStart.y + i][newStart.x] = 3; // head
-            else
-                map[newStart.y + i][newStart.x] = 4; // body
-        }
     }
 
     void changeDirection(int newDirection)
@@ -149,8 +122,6 @@ public:
 
             map[gates.first.y][gates.first.x] = 0;
             map[gates.second.y][gates.second.x] = 0;
-
-            gateCount++;
         }
 
         if (checkCollision(newHead))
@@ -163,59 +134,33 @@ public:
         bool grew = false;
         int growthUnits = 1;
 
-        if (map[newHead.y][newHead.x] == 5 || map[newHead.y][newHead.x] == 6 || map[newHead.y][newHead.x] == 9)
+        if (map[newHead.y][newHead.x] == 5)
         {
-            itemCount++;
-            if (map[newHead.y][newHead.x] == 5)
+            grew = true;
+            map[newHead.y][newHead.x] = 0;
+        }
+        else if (map[newHead.y][newHead.x] == 6)
+        {
+            if (body.size() <= 3)
             {
-                grew = true;
-                map[newHead.y][newHead.x] = 0;
+                endwin();
+                printf("Game Over! Score: %ld\n", body.size());
+                exit(0);
             }
-            else if (map[newHead.y][newHead.x] == 6)
-            {
-                if (body.size() <= 3)
-                {
-                    endwin();
-                    printf("Game Over! Score: %ld\n", body.size());
-                    exit(0);
-                }
-                Position tail = body.back();
-                body.pop_back();
-                map[tail.y][tail.x] = 0;
-                map[newHead.y][newHead.x] = 0;
-            }
-            else if (map[newHead.y][newHead.x] == 9)
-            {
-                grew = true;
-                growthUnits = 2;
-                map[newHead.y][newHead.x] = 0;
-            }
-
-            if (checkMissionCompletion())
-            {
-                itemCount = 0;
-                gateCount = 0;
-
-                if(currentMapIndex != 5){
-                    currentMapIndex = (currentMapIndex % 5) + 1;
-                }else{
-                    printf("Clear! your point is %ld\n", body.size());
-                    exit(0);
-                }
-                loadMap(currentMapIndex);
-                resetPosition();
-            }
+            Position tail = body.back();
+            body.pop_back();
+            map[tail.y][tail.x] = 0;
+            map[newHead.y][newHead.x] = 0;
+        }
+        else if (map[newHead.y][newHead.x] == 2)
+        {
+            grew = true;
+            growthUnits = 2;
+            map[newHead.y][newHead.x] = 0;
         }
 
-        // Move the snake
         body.insert(body.begin(), newHead);
-
-        // Update the map
-        map[newHead.y][newHead.x] = 3;
-        if (body.size() > 1)
-        {
-            map[body[1].y][body[1].x] = 4;
-        }
+        map[newHead.y][newHead.x] = 3;  // New head position
 
         if (!grew)
         {
@@ -230,6 +175,12 @@ public:
             }
         }
 
+        // header problem solving
+        if (body.size() > 1)
+        {
+            map[body[1].y][body[1].x] = 4;
+        }
+
         prevDirection = direction;
 
         for (int i = 0; i < growthUnits - 1; i++)
@@ -242,50 +193,24 @@ public:
 
     void draw()
     {
-        for (int i = 0; i < HEIGHT; ++i)
+        for (size_t i = 0; i < body.size(); ++i)
         {
-            for (int j = 0; j < WIDTH; ++j)
+            if (i == 0)
             {
-                char displayChar = ' ';
-                switch (map[i][j])
-                {
-                    case 1:
-                        displayChar = '#';
-                        break;
-                    case 3:
-                        displayChar = 'H';
-                        break;
-                    case 4:
-                        displayChar = 'o';
-                        break;
-                    case 5:
-                        displayChar = '+';
-                        break;
-                    case 6:
-                        displayChar = '-';
-                        break;
-                    case 7:
-                    case 8:
-                        displayChar = 'G';
-                        break;
-                    case 9:
-                        displayChar = '*';
-                        break;
-                }
-                mvaddch(i, j, displayChar);
+                mvaddch(body[i].y, body[i].x, 'H');
+            }
+            else
+            {
+                mvaddch(body[i].y, body[i].x, 'o');
             }
         }
-        displayMission();
+        mvaddch(gates.first.y, gates.first.x, 'G');
+        mvaddch(gates.second.y, gates.second.x, 'G');
     }
 
     bool checkCollision(Position newHead)
     {
         if (newHead.x <= 0 || newHead.x >= WIDTH - 1 || newHead.y <= 0 || newHead.y >= HEIGHT - 1)
-        {
-            return true;
-        }
-
-        if (map[newHead.y][newHead.x] == 1)
         {
             return true;
         }
@@ -307,7 +232,7 @@ public:
         {
             for (int j = 1; j < WIDTH - 1; j++)
             {
-                if (map[i][j] == 5 || map[i][j] == 6 || map[i][j] == 9)
+                if (map[i][j] == 5 || map[i][j] == 6 || map[i][j] == 2)
                 {
                     map[i][j] = 0;
                 }
@@ -350,7 +275,7 @@ public:
                 }
                 else if (bonusItemsPlaced < 1)
                 {
-                    map[y][x] = 9;
+                    map[y][x] = 2;
                     bonusItemsPlaced++;
                 }
             }
@@ -393,75 +318,21 @@ public:
             lastItemTime = currentTime;
         }
     }
-
-    bool checkMissionCompletion()
-    {
-        switch (currentMapIndex)
-        {
-            case 1:
-                return itemCount >= 3 && gateCount >= 2;
-            case 2:
-                return itemCount >= 1 && gateCount >= 2;
-            case 3:
-                return itemCount >= 2 && gateCount >= 2;
-            case 4:
-                return gateCount >= 2;
-            default:
-                return false;
-        }
-    }
-
-    void displayMission()
-    {
-        mvprintw(0, WIDTH + 2, "<MISSION>");
-
-        switch (currentMapIndex)
-        {
-            case 1:
-                mvprintw(1, WIDTH + 2, "Items: %d / 3", itemCount);
-                mvprintw(2, WIDTH + 2, "Gates: %d / 2", gateCount);
-                break;
-            case 2:
-                mvprintw(1, WIDTH + 2, "Items: %d / 1", itemCount);
-                mvprintw(2, WIDTH + 2, "Gates: %d / 2", gateCount);
-                break;
-            case 3:
-                mvprintw(1, WIDTH + 2, "Items: %d / 2", itemCount);
-                mvprintw(2, WIDTH + 2, "Gates: %d / 2", gateCount);
-                break;
-            case 4:
-                mvprintw(1, WIDTH + 2, "Gates: %d / 2", gateCount);
-                break;
-        }
-    }
 };
 
-void loadMap(int mapIndex)
+void loadMap(const char *filename)
 {
-    std::ifstream mapFile("map" + std::to_string(mapIndex) + ".txt");
-    if (mapFile.is_open())
+    std::ifstream file(filename);
+    std::string line;
+    int row = 0;
+    while (std::getline(file, line))
     {
-        std::string line;
-        int row = 0;
-        while (std::getline(mapFile, line))
+        std::stringstream ss(line);
+        for (int col = 0; col < WIDTH; col++)
         {
-            std::stringstream ss(line);
-            int col = 0;
-            int value;
-            while (ss >> value)
-            {
-                map[row][col] = value;
-                col++;
-            }
-            row++;
+            ss >> map[row][col];
         }
-        mapFile.close();
-    }
-    else
-    {
-        endwin();
-        printf("Failed to load map file: map%d.txt\n", mapIndex);
-        exit(1);
+        row++;
     }
 }
 
@@ -489,12 +360,14 @@ void printMap()
                 case 6:
                     displayChar = '-';
                     break;
+                case 2:
+                    displayChar = '*';
+                    break;
                 case 7:
-                case 8:
                     displayChar = 'G';
                     break;
-                case 9:
-                    displayChar = '*';
+                case 8:
+                    displayChar = 'G';
                     break;
             }
             mvaddch(i, j, displayChar);
@@ -511,7 +384,7 @@ void gameLoop()
 
     int ch;
     auto lastUpdateTime = std::chrono::high_resolution_clock::now();
-    timeout(180);
+    timeout(100);
 
     mvprintw(HEIGHT + 1, 0, "Press any arrow to start the game");
     refresh();
@@ -587,7 +460,7 @@ int main()
     curs_set(0);
     start_color();
 
-    loadMap(currentMapIndex);
+    loadMap("map1.txt");
     printMap();
 
     gameLoop();
