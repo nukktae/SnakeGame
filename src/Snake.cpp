@@ -41,8 +41,8 @@ std::vector<Mission> missions = {
 int currentMapIndex = 0;
 const char* mapFiles[] = {"map1.txt", "map2.txt", "map3.txt", "map4.txt", "map5.txt"};
 int max_length = 0;
-int snakeSpeed[] = {100, 130, 150, 180};  // timeout values for each stage
-float itemChangeSpeed[] = {5.0, 4.0, 3.0, 2.0};  // item change speed in seconds for each stage
+int snakeSpeed[] = {100, 130, 150, 180};  
+float itemChangeSpeed[] = {5.0, 4.0, 3.0, 2.0};  
 
 class Snake
 {
