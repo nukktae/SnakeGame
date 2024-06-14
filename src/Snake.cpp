@@ -24,18 +24,44 @@ struct Gate
 };
 std::pair<Position, Position> gates;
 
+enum MissionType { GROWTH_ITEMS, BONUS_ITEMS, GATE_USAGE };
+struct Mission
+{
+    MissionType type;
+    int targetCount;
+    int currentCount;
+};
+
+std::vector<Mission> missions = {
+    {GROWTH_ITEMS, 3, 0},
+    {BONUS_ITEMS, 2, 0},
+    {GATE_USAGE, 2, 0}
+};
+
+int currentMapIndex = 0;
+const char* mapFiles[] = {"map1.txt", "map2.txt", "map3.txt", "map4.txt", "map5.txt"};
+int max_length = 0;
+int snakeSpeed[] = {100, 130, 150, 180};  // timeout values for each stage
+float itemChangeSpeed[] = {5.0, 4.0, 3.0, 2.0};  // item change speed in seconds for each stage
+
 class Snake
 {
 private:
     std::vector<Position> body;
     int direction;
     int prevDirection;
+    int growthItems;
+    int poisonItems;
+    int gateUsage;
 
 public:
     Snake(int mapWidth, int mapHeight)
     {
         direction = 2;
         prevDirection = 2;
+        growthItems = 0;
+        poisonItems = 0;
+        gateUsage = 0;
 
         int startX = mapWidth / 2;
         int startY = mapHeight / 2;
@@ -75,6 +101,13 @@ public:
             case 4:
                 newHead.x--;
                 break;
+        }
+
+        if (map[newHead.y][newHead.x] == 1)
+        {
+            endwin();
+            printf("Game Over! Score: %ld\n", body.size());
+            exit(0);
         }
 
         if (map[newHead.y][newHead.x] == 7 || map[newHead.y][newHead.x] == 8)
@@ -122,6 +155,13 @@ public:
 
             map[gates.first.y][gates.first.x] = 0;
             map[gates.second.y][gates.second.x] = 0;
+
+            if (currentMapIndex < 3)
+            {
+                missions[currentMapIndex].currentCount++;
+            }
+
+            gateUsage++;
         }
 
         if (checkCollision(newHead))
@@ -138,6 +178,12 @@ public:
         {
             grew = true;
             map[newHead.y][newHead.x] = 0;
+
+            if (currentMapIndex == 0)
+            {
+                missions[currentMapIndex].currentCount++;
+            }
+            growthItems++;
         }
         else if (map[newHead.y][newHead.x] == 6)
         {
@@ -151,12 +197,18 @@ public:
             body.pop_back();
             map[tail.y][tail.x] = 0;
             map[newHead.y][newHead.x] = 0;
+            poisonItems++;
         }
         else if (map[newHead.y][newHead.x] == 2)
         {
             grew = true;
             growthUnits = 2;
             map[newHead.y][newHead.x] = 0;
+
+            if (currentMapIndex == 1)
+            {
+                missions[currentMapIndex].currentCount++;
+            }
         }
 
         body.insert(body.begin(), newHead);
@@ -306,18 +358,23 @@ public:
         map[gate2.y][gate2.x] = 8;
     }
 
-    void handleItems()
+    void handleItems(float itemChangeSpeed)
     {
         static auto lastItemTime = std::chrono::high_resolution_clock::now();
         auto currentTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<float> elapsed = currentTime - lastItemTime;
 
-        if (elapsed.count() >= 5.0)
+        if (elapsed.count() >= itemChangeSpeed)
         {
             placeItems();
             lastItemTime = currentTime;
         }
     }
+
+    int getLength() { return body.size(); }
+    int getGrowthItems() { return growthItems; }
+    int getPoisonItems() { return poisonItems; }
+    int getGateUsage() { return gateUsage; }
 };
 
 void loadMap(const char *filename)
@@ -336,6 +393,24 @@ void loadMap(const char *filename)
     }
 }
 
+void calculateMaxLength()
+{
+    std::ifstream file(mapFiles[4]); // map5.txt
+    std::string line;
+    int zeroCount = 0;
+    while (std::getline(file, line))
+    {
+        for (char c : line)
+        {
+            if (c == '0')
+            {
+                zeroCount++;
+            }
+        }
+    }
+    max_length = zeroCount;
+}
+
 void printMap()
 {
     for (int i = 0; i < HEIGHT; i++)
@@ -347,6 +422,9 @@ void printMap()
             {
                 case 1:
                     displayChar = '#';
+                    break;
+                case 2:
+                    displayChar = '*';
                     break;
                 case 3:
                     displayChar = 'H';
@@ -360,9 +438,7 @@ void printMap()
                 case 6:
                     displayChar = '-';
                     break;
-                case 2:
-                    displayChar = '*';
-                    break;
+
                 case 7:
                     displayChar = 'G';
                     break;
@@ -375,6 +451,48 @@ void printMap()
     }
 }
 
+void printMission()
+{
+    mvprintw(0, WIDTH + 2, "Current Mission:");
+    switch (currentMapIndex)
+    {
+        case 0:
+            mvprintw(1, WIDTH + 2, "Growth Items: %d / 3", missions[0].currentCount);
+            break;
+        case 1:
+            mvprintw(1, WIDTH + 2, "Bonus Items: %d / 2", missions[1].currentCount);
+            break;
+        case 2:
+            mvprintw(1, WIDTH + 2, "Gate Usage: %d / 2", missions[2].currentCount);
+            break;
+        case 3:
+            mvprintw(1, WIDTH + 2, "Survive as long as you can!");
+            break;
+    }
+}
+
+void printScoreBoard(Snake &snake)
+{
+    mvprintw(6, WIDTH + 2, "Score Board");
+    mvprintw(7, WIDTH + 2, "B: %d / %d", snake.getLength(), max_length);
+    mvprintw(8, WIDTH + 2, "+: %d", snake.getGrowthItems());
+    mvprintw(9, WIDTH + 2, "-: %d", snake.getPoisonItems());
+    mvprintw(10, WIDTH + 2, "G: %d", snake.getGateUsage());
+}
+
+void checkMissionCompletion()
+{
+    if (currentMapIndex < 3 && missions[currentMapIndex].currentCount >= missions[currentMapIndex].targetCount)
+    {
+        currentMapIndex++;
+        missions[currentMapIndex].currentCount = 0;  // Reset the mission count for the new stage
+        loadMap(mapFiles[currentMapIndex]);
+        clear();
+        printMap();
+        printMission();
+    }
+}
+
 void gameLoop()
 {
     Snake snake(WIDTH, HEIGHT);
@@ -384,9 +502,11 @@ void gameLoop()
 
     int ch;
     auto lastUpdateTime = std::chrono::high_resolution_clock::now();
-    timeout(100);
+    timeout(snakeSpeed[currentMapIndex]);
 
-    mvprintw(HEIGHT + 1, 0, "Press any arrow to start the game");
+    mvprintw(HEIGHT + 2, 0, "Press any arrow to start the game");
+    printMission();
+    printScoreBoard(snake);
     refresh();
 
     while ((ch = getch()) != 'q')
@@ -413,6 +533,9 @@ void gameLoop()
                     break;
             }
             clear();
+            printMap();
+            printMission();
+            printScoreBoard(snake);
         }
 
         if (gameStarted)
@@ -438,14 +561,17 @@ void gameLoop()
 
             auto currentTime = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float> elapsed = currentTime - lastUpdateTime;
-            if (elapsed.count() >= 0.1)
+            if (elapsed.count() >= snakeSpeed[currentMapIndex] / 1000.0)
             {
                 snake.move();
                 snake.draw();
-                snake.handleItems();
+                snake.handleItems(itemChangeSpeed[currentMapIndex]);
                 printMap();
+                printMission();
+                printScoreBoard(snake);
                 refresh();
                 lastUpdateTime = currentTime;
+                checkMissionCompletion();
             }
         }
     }
@@ -460,7 +586,8 @@ int main()
     curs_set(0);
     start_color();
 
-    loadMap("map1.txt");
+    calculateMaxLength();
+    loadMap(mapFiles[currentMapIndex]);
     printMap();
 
     gameLoop();
