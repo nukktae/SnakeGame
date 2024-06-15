@@ -44,17 +44,17 @@ public:
         clearOldGate(map);
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_int_distribution<int> dis(1, WIDTH - 2);
+        std::uniform_int_distribution<int> dis(1, WIDTH - 1);
 
         do
         {
             pos1 = {dis(gen), dis(gen)};
-        } while (map[pos1.y][pos1.x] != 0);
+        } while (map[pos1.y][pos1.x] != 0 && map[pos1.y][pos1.x] != 1);
 
         do
         {
             pos2 = {dis(gen), dis(gen)};
-        } while (map[pos2.y][pos2.x] != 0 || (pos1.x == pos2.x && pos1.y == pos2.y));
+        } while ((map[pos2.y][pos2.x] != 0 && map[pos1.y][pos1.x] != 1) || (pos1.x == pos2.x && pos1.y == pos2.y));
 
         map[pos1.y][pos1.x] = 7;
         map[pos2.y][pos2.x] = 8;
@@ -345,7 +345,7 @@ public:
 
             if (currentMapIndex == 2)
             {
-                missions[currentMapIndex + 2].currentCount++;
+                missions[5].currentCount++;
             }
 
             gateUsage++;
