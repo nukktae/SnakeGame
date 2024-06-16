@@ -16,7 +16,7 @@ const int WIDTH = 21;
 
 void initializeSound();
 void playBackgroundMusic();
-void playSoundEffect(const char* filepath);
+void playSoundEffect(const char *filepath);
 void drawCustomAsciiArt();
 
 class Position
@@ -30,20 +30,42 @@ class Gate
 private:
     Position pos1;
     Position pos2;
+    int isitwallF{};
+    int isitwallS{};
 
 public:
+    bool isInnerWall(int x, int y, int map[HEIGHT][WIDTH])
+    {
+        if (map[y][x] == 1)
+        {
+            return !(x == 0 || x == WIDTH - 1 || y == 0 || y == HEIGHT - 1);
+        }
+        return false;
+    }
     void clearOldGate(int map[HEIGHT][WIDTH])
     {
-        for (int i = 1; i < HEIGHT - 1; i++)
+        for (int i = 0; i < HEIGHT; i++)
         {
-            for (int j = 1; j < WIDTH - 1; j++)
+            for (int j = 0; j < WIDTH; j++)
             {
-                if (map[i][j] == 7 || map[i][j] == 8)
+                if (map[i][j] == 7)
                 {
                     map[i][j] = 0;
+                    if (isitwallF == 1)
+                        map[i][j] = 1;
+                }
+                if (map[i][j] == 8)
+                {
+                    map[i][j] = 0;
+                    if (isitwallS == 1)
+                        map[i][j] = 1;
                 }
             }
         }
+    }
+    bool isimutWall(Position pos)
+    {
+        return ((pos.y == 0 && pos.x == 0) || (pos.y == 0 && pos.x == 20) || (pos.y == 20 && pos.x == 0) || (pos.y == 20 && pos.x == 20));
     }
 
     void placeGate(int map[HEIGHT][WIDTH])
@@ -51,24 +73,52 @@ public:
         clearOldGate(map);
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_int_distribution<int> dis(1, WIDTH - 1);
+        std::uniform_int_distribution<int> dis(1, WIDTH - 2);
+        std::uniform_int_distribution<int> dis2(0, WIDTH - 1);
 
-        do
+        if (dis(gen) % 3 == 0)
         {
-            pos1 = {dis(gen), dis(gen)};
-        } while (map[pos1.y][pos1.x] != 0 && map[pos1.y][pos1.x] != 1);
+            do
+            {
+                pos1 = {dis(gen), dis(gen)};
 
-        do
+            } while (map[pos1.y][pos1.x] != 0);
+
+            do
+            {
+                pos2 = {dis(gen), dis(gen)};
+            } while (map[pos2.y][pos2.x] != 0 || (pos1.x == pos2.x && pos1.y == pos2.y));
+
+            map[pos1.y][pos1.x] = 7;
+            map[pos2.y][pos2.x] = 8;
+            isitwallF = 0;
+            isitwallS = 0;
+        }
+        else
         {
-            pos2 = {dis(gen), dis(gen)};
-        } while ((map[pos2.y][pos2.x] != 0 && map[pos1.y][pos1.x] != 1) || (pos1.x == pos2.x && pos1.y == pos2.y));
+            do
+            {
+                pos1 = {dis2(gen), dis2(gen)};
 
-        map[pos1.y][pos1.x] = 7;
-        map[pos2.y][pos2.x] = 8;
+            } while (map[pos1.y][pos1.x] != 1 || isimutWall(pos1));
+
+            do
+            {
+                pos2 = {dis2(gen), dis2(gen)};
+            } while ((map[pos1.y][pos1.x] != 1 || (pos1.x == pos2.x && pos1.y == pos2.y)) && isimutWall(pos2));
+
+            map[pos1.y][pos1.x] = 7;
+            map[pos2.y][pos2.x] = 8;
+            isitwallF = 1;
+            if (pos2.y == 20 || pos2.y == 0 || pos2.x == 0 || pos2.x == 20)
+                isitwallS = 1;
+        }
     }
 
     Position getFirst() const { return pos1; }
     Position getSecond() const { return pos2; }
+    int getIsitwallF() const { return isitwallF; }
+    int getIsitwallS() const { return isitwallS; }
 };
 
 class Item
@@ -175,28 +225,28 @@ public:
                 char displayChar = ' ';
                 switch (grid[i][j])
                 {
-                    case 1:
-                        displayChar = '#';
-                        break;
-                    case 2:
-                        displayChar = '*';
-                        break;
-                    case 3:
-                        displayChar = 'H';
-                        break;
-                    case 4:
-                        displayChar = 'o';
-                        break;
-                    case 5:
-                        displayChar = '+';
-                        break;
-                    case 6:
-                        displayChar = '-';
-                        break;
-                    case 7:
-                    case 8:
-                        displayChar = 'G';
-                        break;
+                case 1:
+                    displayChar = '#';
+                    break;
+                case 2:
+                    displayChar = '*';
+                    break;
+                case 3:
+                    displayChar = 'H';
+                    break;
+                case 4:
+                    displayChar = 'o';
+                    break;
+                case 5:
+                    displayChar = '+';
+                    break;
+                case 6:
+                    displayChar = '-';
+                    break;
+                case 7:
+                case 8:
+                    displayChar = 'G';
+                    break;
                 }
                 mvaddch(i, j, displayChar);
             }
@@ -220,12 +270,12 @@ struct Mission
 };
 
 std::vector<Mission> missions = {
-        {GROWTH_ITEMS, 3, 0},
-        {POISON_ITEMS, 1, 0},
-        {BONUS_ITEMS, 1, 0},
-        {BONUS_ITEMS, 2, 0},
-        {POISON_ITEMS, 2, 0},
-        {GATE_USAGE, 2, 0}};
+    {GROWTH_ITEMS, 3, 0},
+    {POISON_ITEMS, 1, 0},
+    {BONUS_ITEMS, 1, 0},
+    {BONUS_ITEMS, 2, 0},
+    {POISON_ITEMS, 2, 0},
+    {GATE_USAGE, 2, 0}};
 
 int currentMapIndex = 0;
 const char *mapFiles[] = {"map1.txt", "map2.txt", "map3.txt", "map4.txt", "map5.txt"};
@@ -244,6 +294,7 @@ private:
     int gateUsage;
     Map &map;
     Gate &gate;
+    int isinGate{};
 
 public:
     Snake(int mapWidth, int mapHeight, Map &m, Gate &g) : map(m), gate(g)
@@ -286,18 +337,18 @@ public:
 
         switch (direction)
         {
-            case 1:
-                newHead.y--;
-                break;
-            case 2:
-                newHead.x++;
-                break;
-            case 3:
-                newHead.y++;
-                break;
-            case 4:
-                newHead.x--;
-                break;
+        case 1:
+            newHead.y--;
+            break;
+        case 2:
+            newHead.x++;
+            break;
+        case 3:
+            newHead.y++;
+            break;
+        case 4:
+            newHead.x--;
+            break;
         }
         if (map.grid[newHead.y][newHead.x] == 1)
         {
@@ -307,17 +358,42 @@ public:
             exit(0);
         }
 
-        if (map.grid[newHead.y][newHead.x] == 7 || map.grid[newHead.y][newHead.x] == 8)
+        if (map.grid[newHead.y][newHead.x] == 7 || map.grid[newHead.y][newHead.x] == 8 || isinGate)
         {
+            isinGate = 1;
             if (map.grid[newHead.y][newHead.x] == 7)
             {
                 newHead = gate.getSecond();
             }
-            else
+            else if (map.grid[newHead.y][newHead.x] == 8)
             {
                 newHead = gate.getFirst();
             }
 
+            if (newHead.y == gate.getFirst().y && newHead.x == gate.getFirst().x)
+            {
+                if (newHead.x == 0)
+                    direction = 2;
+                else if (newHead.x == WIDTH - 1)
+                    direction = 4;
+                else if (newHead.y == 0)
+                    direction = 3;
+                else if (newHead.y == HEIGHT - 1)
+                    direction = 1;
+            }
+            else if (newHead.y == gate.getSecond().y && newHead.x == gate.getSecond().x)
+            {
+                if (newHead.x == 0)
+                    direction = 2;
+                else if (newHead.x == WIDTH - 1)
+                    direction = 4;
+                else if (newHead.y == 0)
+                    direction = 3;
+                else if (newHead.y == HEIGHT - 1)
+                    direction = 1;
+            }
+
+            Position exit = newHead;
             if (newHead.x <= 0)
                 newHead.x = 1;
             if (newHead.x >= WIDTH - 1)
@@ -327,37 +403,19 @@ public:
             if (newHead.y >= HEIGHT - 1)
                 newHead.y = HEIGHT - 2;
 
-            if (newHead.y == gate.getFirst().y && newHead.x == gate.getFirst().x)
-            {
-                if (newHead.x == 1)
-                    direction = 2;
-                else if (newHead.x == WIDTH - 2)
-                    direction = 4;
-                else if (newHead.y == 1)
-                    direction = 3;
-                else if (newHead.y == HEIGHT - 2)
-                    direction = 1;
-            }
-            else if (newHead.y == gate.getSecond().y && newHead.x == gate.getSecond().x)
-            {
-                if (newHead.x == 1)
-                    direction = 2;
-                else if (newHead.x == WIDTH - 2)
-                    direction = 4;
-                else if (newHead.y == 1)
-                    direction = 3;
-                else if (newHead.y == HEIGHT - 2)
-                    direction = 1;
-            }
+            Position tail;
+            tail = body.back();
 
-            map.grid[gate.getFirst().y][gate.getFirst().x] = 0;
-            map.grid[gate.getSecond().y][gate.getSecond().x] = 0;
+            if (tail.x == exit.x || tail.y == exit.y)
+            {
+                isinGate = 0;
+                gate.clearOldGate(map.grid);
+            }
 
             if (currentMapIndex == 2)
             {
                 missions[5].currentCount++;
             }
-
             gateUsage++;
             playSoundEffect("use_gate.wav");
         }
@@ -520,21 +578,21 @@ void printMission()
     mvprintw(0, WIDTH + 2, "Current Mission:");
     switch (currentMapIndex)
     {
-        case 0:
-            mvprintw(1, WIDTH + 2, "Growth Items: %d / 3", missions[0].currentCount);
-            mvprintw(2, WIDTH + 2, "Poison Items: %d / 1", missions[1].currentCount);
-            mvprintw(3, WIDTH + 2, "Bonus Items: %d / 1", missions[2].currentCount);
-            break;
-        case 1:
-            mvprintw(1, WIDTH + 2, "Bonus Items: %d / 2", missions[3].currentCount);
-            mvprintw(2, WIDTH + 2, "Poison Items: %d / 2", missions[4].currentCount);
-            break;
-        case 2:
-            mvprintw(1, WIDTH + 2, "Gate Usage: %d / 2", missions[5].currentCount);
-            break;
-        case 3:
-            mvprintw(1, WIDTH + 2, "Survive as long as you can!");
-            break;
+    case 0:
+        mvprintw(1, WIDTH + 2, "Growth Items: %d / 3", missions[0].currentCount);
+        mvprintw(2, WIDTH + 2, "Poison Items: %d / 1", missions[1].currentCount);
+        mvprintw(3, WIDTH + 2, "Bonus Items: %d / 1", missions[2].currentCount);
+        break;
+    case 1:
+        mvprintw(1, WIDTH + 2, "Bonus Items: %d / 2", missions[3].currentCount);
+        mvprintw(2, WIDTH + 2, "Poison Items: %d / 2", missions[4].currentCount);
+        break;
+    case 2:
+        mvprintw(1, WIDTH + 2, "Gate Usage: %d / 2", missions[5].currentCount);
+        break;
+    case 3:
+        mvprintw(1, WIDTH + 2, "Survive as long as you can!");
+        break;
     }
 }
 
@@ -614,26 +672,26 @@ void gameLoop(Map &map, Snake &snake, Item &item, Gate &gate)
         {
             switch (ch)
             {
-                case KEY_UP:
-                    snake.changeDirection(1);
-                    gameStarted = true;
-                    playBackgroundMusic();
-                    break;
-                case KEY_RIGHT:
-                    snake.changeDirection(2);
-                    gameStarted = true;
-                    playBackgroundMusic();
-                    break;
-                case KEY_DOWN:
-                    snake.changeDirection(3);
-                    gameStarted = true;
-                    playBackgroundMusic();
-                    break;
-                case KEY_LEFT:
-                    snake.changeDirection(4);
-                    gameStarted = true;
-                    playBackgroundMusic();
-                    break;
+            case KEY_UP:
+                snake.changeDirection(1);
+                gameStarted = true;
+                playBackgroundMusic();
+                break;
+            case KEY_RIGHT:
+                snake.changeDirection(2);
+                gameStarted = true;
+                playBackgroundMusic();
+                break;
+            case KEY_DOWN:
+                snake.changeDirection(3);
+                gameStarted = true;
+                playBackgroundMusic();
+                break;
+            case KEY_LEFT:
+                snake.changeDirection(4);
+                gameStarted = true;
+                playBackgroundMusic();
+                break;
             }
             clear();
             map.printMap();
@@ -649,18 +707,18 @@ void gameLoop(Map &map, Snake &snake, Item &item, Gate &gate)
             {
                 switch (ch)
                 {
-                    case KEY_UP:
-                        snake.changeDirection(1);
-                        break;
-                    case KEY_RIGHT:
-                        snake.changeDirection(2);
-                        break;
-                    case KEY_DOWN:
-                        snake.changeDirection(3);
-                        break;
-                    case KEY_LEFT:
-                        snake.changeDirection(4);
-                        break;
+                case KEY_UP:
+                    snake.changeDirection(1);
+                    break;
+                case KEY_RIGHT:
+                    snake.changeDirection(2);
+                    break;
+                case KEY_DOWN:
+                    snake.changeDirection(3);
+                    break;
+                case KEY_LEFT:
+                    snake.changeDirection(4);
+                    break;
                 }
             }
 
@@ -700,57 +758,67 @@ void calculateMaxLength()
     max_length = zeroCount;
 }
 
-void initializeSound() {
-    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+void initializeSound()
+{
+    if (SDL_Init(SDL_INIT_AUDIO) < 0)
+    {
         fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
         exit(1);
     }
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0)
+    {
         fprintf(stderr, "Failed to initialize SDL_mixer: %s\n", Mix_GetError());
         SDL_Quit();
         exit(1);
     }
 }
 
-void playBackgroundMusic() {
-    Mix_Music* music = Mix_LoadMUS("background_music.mp3");
-    if (!music) {
+void playBackgroundMusic()
+{
+    Mix_Music *music = Mix_LoadMUS("background_music.mp3");
+    if (!music)
+    {
         fprintf(stderr, "Failed to load background music: %s\n", Mix_GetError());
         return;
     }
-    if (Mix_PlayMusic(music, -1) == -1) {
+    if (Mix_PlayMusic(music, -1) == -1)
+    {
         fprintf(stderr, "Failed to play background music: %s\n", Mix_GetError());
         Mix_FreeMusic(music);
         return;
     }
 }
 
-void playSoundEffect(const char* filename) {
-    Mix_Chunk* sound = Mix_LoadWAV(filename);
-    if (!sound) {
+void playSoundEffect(const char *filename)
+{
+    Mix_Chunk *sound = Mix_LoadWAV(filename);
+    if (!sound)
+    {
         fprintf(stderr, "Failed to load sound effect %s: %s\n", filename, Mix_GetError());
         return;
     }
-    if (Mix_PlayChannel(-1, sound, 0) == -1) {
+    if (Mix_PlayChannel(-1, sound, 0) == -1)
+    {
         fprintf(stderr, "Failed to play sound effect %s: %s\n", filename, Mix_GetError());
         Mix_FreeChunk(sound);
         return;
     }
 }
 
-void drawCustomAsciiArt() {
-    const char* asciiArt[] = {
-            " /\\_/\\  ",
-            "( o.o ) ",
-            " > ^ <  ",
-            "Bunny"
-    };
+void drawCustomAsciiArt()
+{
+    const char *asciiArt[] = {
+        " /\\_/\\  ",
+        "( o.o ) ",
+        " > ^ <  ",
+        "Bunny"};
 
     int artStartY = 20;
     int artStartX = WIDTH + 4;
 
     attron(COLOR_PAIR(5) | A_BOLD);
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++)
+    {
         mvprintw(artStartY + i, artStartX, asciiArt[i]);
     }
     attroff(COLOR_PAIR(5) | A_BOLD);
@@ -773,7 +841,7 @@ int main()
 
     Gate gate;
     Snake snake(WIDTH, HEIGHT, map, gate);
-    Item item; 
+    Item item;
 
     gameLoop(map, snake, item, gate);
 
