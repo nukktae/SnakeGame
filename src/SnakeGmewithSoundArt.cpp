@@ -773,9 +773,25 @@ void initializeSound()
     }
 }
 
+void playSoundEffect(const char *filepath)
+{
+    Mix_Chunk *sound = Mix_LoadWAV(filepath);
+    if (!sound)
+    {
+        fprintf(stderr, "Failed to load sound effect %s: %s\n", filepath, Mix_GetError());
+        return;
+    }
+    if (Mix_PlayChannel(-1, sound, 0) == -1)
+    {
+        fprintf(stderr, "Failed to play sound effect %s: %s\n", filepath, Mix_GetError());
+        Mix_FreeChunk(sound);
+        return;
+    }
+}
+
 void playBackgroundMusic()
 {
-    Mix_Music *music = Mix_LoadMUS("background_music.mp3");
+    Mix_Music *music = Mix_LoadMUS("/home/anu/Downloads/background_music.mp3");
     if (!music)
     {
         fprintf(stderr, "Failed to load background music: %s\n", Mix_GetError());
@@ -789,21 +805,6 @@ void playBackgroundMusic()
     }
 }
 
-void playSoundEffect(const char *filename)
-{
-    Mix_Chunk *sound = Mix_LoadWAV(filename);
-    if (!sound)
-    {
-        fprintf(stderr, "Failed to load sound effect %s: %s\n", filename, Mix_GetError());
-        return;
-    }
-    if (Mix_PlayChannel(-1, sound, 0) == -1)
-    {
-        fprintf(stderr, "Failed to play sound effect %s: %s\n", filename, Mix_GetError());
-        Mix_FreeChunk(sound);
-        return;
-    }
-}
 
 void drawCustomAsciiArt()
 {
