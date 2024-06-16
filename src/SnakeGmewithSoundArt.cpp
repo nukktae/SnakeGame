@@ -214,7 +214,7 @@ public:
             }
         }
     }
-
+    
     void printMap()
     {
         clear();
@@ -659,9 +659,7 @@ void gameLoop(Map &map, Snake &snake, Item &item, Gate &gate)
     timeout(snakeSpeed[currentMapIndex]);
 
     mvprintw(HEIGHT + 2, 0, "Press any arrow to start the game");
-    // item.placeItems(map.grid);  // 시작할 때 아이템 배치
-    // map.printMap();
-    // snake.draw();
+    drawCustomAsciiTitle();  
     printMission();
     printScoreBoard(snake, startTime);
     refresh();
@@ -695,10 +693,10 @@ void gameLoop(Map &map, Snake &snake, Item &item, Gate &gate)
             }
             clear();
             map.printMap();
-            // snake.draw();
+            drawCustomAsciiTitle();  
             printMission();
             printScoreBoard(snake, startTime);
-            // refresh();
+            refresh();
         }
 
         if (gameStarted)
@@ -730,6 +728,7 @@ void gameLoop(Map &map, Snake &snake, Item &item, Gate &gate)
                 snake.draw();
                 snake.handleItemsandGate(itemChangeSpeed[currentMapIndex], item, gate);
                 map.printMap();
+                drawCustomAsciiTitle(); 
                 printMission();
                 printScoreBoard(snake, startTime);
                 refresh();
@@ -805,6 +804,24 @@ void playBackgroundMusic()
     }
 }
 
+void drawCustomAsciiTitle() {
+    const char* asciiTitle[] = {
+        "  ____              _        ",
+        " / ___| _ __   __ _| | _____ ",
+        " \\___ \\| '_ \\ / _` | |/ / _ \\",
+        "  ___) | | | | (_| |   <  __/",
+        " |____/|_| |_|\\__,_|_|\\_\\___|"
+    };
+
+    int titleStartY = 1;
+    int titleStartX = WIDTH + 5;
+
+    attron(COLOR_PAIR(5) | A_BOLD);
+    for (int i = 0; i < 5; i++) {
+        mvprintw(titleStartY + i, titleStartX, asciiTitle[i]);
+    }
+    attroff(COLOR_PAIR(5) | A_BOLD);
+}
 
 void drawCustomAsciiArt()
 {
