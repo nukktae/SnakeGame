@@ -12,6 +12,12 @@
 const int HEIGHT = 21;
 const int WIDTH = 21;
 
+int ch;
+void setch(int c)
+{
+    ch = c;
+}
+
 class Position
 {
 public:
@@ -23,20 +29,43 @@ class Gate
 private:
     Position pos1;
     Position pos2;
+    int isitwallF{};
+    int isitwallS{};
 
 public:
+    bool isInnerWall(int x, int y, int map[HEIGHT][WIDTH])
+    {
+        if (map[y][x] == 1)
+        {
+            return !(x == 0 || x == WIDTH - 1 || y == 0 || y == HEIGHT - 1);
+        }
+        return false;
+    }
     void clearOldGate(int map[HEIGHT][WIDTH])
     {
-        for (int i = 1; i < HEIGHT - 1; i++)
+        for (int i = 0; i < HEIGHT; i++)
         {
-            for (int j = 1; j < WIDTH - 1; j++)
+            for (int j = 0; j < WIDTH; j++)
             {
-                if (map[i][j] == 7 || map[i][j] == 8)
+                if (map[i][j] == 7)
                 {
                     map[i][j] = 0;
+                    if (isitwallF == 1)
+                        map[i][j] = 1;
+                }
+                if (map[i][j] == 8)
+                {
+                    map[i][j] = 0;
+                    if (isitwallS == 1)
+                        map[i][j] = 1;
                 }
             }
         }
+    }
+
+    bool isimutWall(Position pos)
+    {
+        return ((pos.y == 0 && pos.x == 0) || (pos.y == 0 && pos.x == 20) || (pos.y == 20 && pos.x == 0) || (pos.y == 20 && pos.x == 20));
     }
 
     void placeGate(int map[HEIGHT][WIDTH])
@@ -44,24 +73,52 @@ public:
         clearOldGate(map);
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_int_distribution<int> dis(1, WIDTH - 1);
+        std::uniform_int_distribution<int> dis(1, WIDTH - 2);
+        std::uniform_int_distribution<int> dis2(0, WIDTH - 1);
 
-        do
+        if (dis(gen) % 3 == 0)
         {
-            pos1 = {dis(gen), dis(gen)};
-        } while (map[pos1.y][pos1.x] != 0 && map[pos1.y][pos1.x] != 1);
+            do
+            {
+                pos1 = {dis(gen), dis(gen)};
 
-        do
+            } while (map[pos1.y][pos1.x] != 0);
+
+            do
+            {
+                pos2 = {dis(gen), dis(gen)};
+            } while (map[pos2.y][pos2.x] != 0 || (pos1.x == pos2.x && pos1.y == pos2.y));
+
+            map[pos1.y][pos1.x] = 7;
+            map[pos2.y][pos2.x] = 8;
+            isitwallF = 0;
+            isitwallS = 0;
+        }
+        else
         {
-            pos2 = {dis(gen), dis(gen)};
-        } while ((map[pos2.y][pos2.x] != 0 && map[pos1.y][pos1.x] != 1) || (pos1.x == pos2.x && pos1.y == pos2.y));
+            do
+            {
+                pos1 = {dis2(gen), dis2(gen)};
 
-        map[pos1.y][pos1.x] = 7;
-        map[pos2.y][pos2.x] = 8;
+            } while (map[pos1.y][pos1.x] != 1 || isimutWall(pos1));
+
+            do
+            {
+                pos2 = {dis2(gen), dis2(gen)};
+            } while ((map[pos1.y][pos1.x] != 1 || (pos1.x == pos2.x && pos1.y == pos2.y)) && isimutWall(pos2));
+
+            map[pos1.y][pos1.x] = 7;
+            map[pos2.y][pos2.x] = 8;
+            isitwallF = 1;
+            if (pos2.y == 20 || pos2.y == 0 || pos2.x == 0 || pos2.x == 20)
+                isitwallS = 1;
+        }
     }
 
     Position getFirst() const { return pos1; }
     Position getSecond() const { return pos2; }
+    int getIsitwallF() const { return isitwallF; }
+    int getIsitwallS() const { return isitwallS; }
 };
 
 class Item
@@ -235,6 +292,7 @@ private:
     int gateUsage;
     Map &map;
     Gate &gate;
+    int isinGate{};
 
 public:
     Snake(int mapWidth, int mapHeight, Map &m, Gate &g) : map(m), gate(g)
@@ -297,17 +355,42 @@ public:
             exit(0);
         }
 
-        if (map.grid[newHead.y][newHead.x] == 7 || map.grid[newHead.y][newHead.x] == 8)
+        if (map.grid[newHead.y][newHead.x] == 7 || map.grid[newHead.y][newHead.x] == 8 || isinGate)
         {
+            isinGate = 1;
             if (map.grid[newHead.y][newHead.x] == 7)
             {
                 newHead = gate.getSecond();
             }
-            else
+            else if (map.grid[newHead.y][newHead.x] == 8)
             {
                 newHead = gate.getFirst();
             }
 
+            if (newHead.y == gate.getFirst().y && newHead.x == gate.getFirst().x)
+            {
+                if (newHead.x == 0)
+                    direction = 2;
+                else if (newHead.x == WIDTH - 1)
+                    direction = 4;
+                else if (newHead.y == 0)
+                    direction = 3;
+                else if (newHead.y == HEIGHT - 1)
+                    direction = 1;
+            }
+            else if (newHead.y == gate.getSecond().y && newHead.x == gate.getSecond().x)
+            {
+                if (newHead.x == 0)
+                    direction = 2;
+                else if (newHead.x == WIDTH - 1)
+                    direction = 4;
+                else if (newHead.y == 0)
+                    direction = 3;
+                else if (newHead.y == HEIGHT - 1)
+                    direction = 1;
+            }
+
+            Position exit = newHead;
             if (newHead.x <= 0)
                 newHead.x = 1;
             if (newHead.x >= WIDTH - 1)
@@ -317,37 +400,19 @@ public:
             if (newHead.y >= HEIGHT - 1)
                 newHead.y = HEIGHT - 2;
 
-            if (newHead.y == gate.getFirst().y && newHead.x == gate.getFirst().x)
-            {
-                if (newHead.x == 1)
-                    direction = 2;
-                else if (newHead.x == WIDTH - 2)
-                    direction = 4;
-                else if (newHead.y == 1)
-                    direction = 3;
-                else if (newHead.y == HEIGHT - 2)
-                    direction = 1;
-            }
-            else if (newHead.y == gate.getSecond().y && newHead.x == gate.getSecond().x)
-            {
-                if (newHead.x == 1)
-                    direction = 2;
-                else if (newHead.x == WIDTH - 2)
-                    direction = 4;
-                else if (newHead.y == 1)
-                    direction = 3;
-                else if (newHead.y == HEIGHT - 2)
-                    direction = 1;
-            }
+            Position tail;
+            tail = body.back();
 
-            map.grid[gate.getFirst().y][gate.getFirst().x] = 0;
-            map.grid[gate.getSecond().y][gate.getSecond().x] = 0;
+            if (tail.x == exit.x || tail.y == exit.y)
+            {
+                isinGate = 0;
+                gate.clearOldGate(map.grid);
+            }
 
             if (currentMapIndex == 2)
             {
                 missions[5].currentCount++;
             }
-
             gateUsage++;
         }
 
@@ -578,7 +643,6 @@ void gameLoop(Map &map, Snake &snake, Item &item, Gate &gate)
     item.placeItems(map.grid);
     gate.placeGate(map.grid);
 
-    int ch;
     auto lastUpdateTime = std::chrono::high_resolution_clock::now();
     auto startTime = std::chrono::high_resolution_clock::now();
     timeout(snakeSpeed[currentMapIndex]);
@@ -628,6 +692,8 @@ void gameLoop(Map &map, Snake &snake, Item &item, Gate &gate)
             {
                 switch (ch)
                 {
+                case 0:
+                    break;
                 case KEY_UP:
                     snake.changeDirection(1);
                     break;
